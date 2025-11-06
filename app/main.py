@@ -20,7 +20,7 @@
 # Python App Docker setup
 # -----------------------
 # pip install -r requirements.txt
-#             >> fastapi[standard]>=0.113.0,<0.114.0
+#             >> fastapi[standard]>=0.113.0,<0.114.0ls -
 #             >> pydantic>=2.7.0,<3.0.0
 # Create an app directory and cd into it.
 # Create an empty file __init__.py
