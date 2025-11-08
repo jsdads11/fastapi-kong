@@ -1,116 +1,256 @@
-# How to register FastAPI service with Kong API Gateways
+# fastapi-kong
 
-## Run Docker compose setup
+A minimal FastAPI example integrated with Kong (API Gateway) and optional Postgres. Designed for local development, Docker, and quick experimentation with Kong routes and services.
 
-```KONG_DATABASE=postgres docker compose --profile database up -d```
+# fastapi-kong
 
-## Docker Build and Run FAST API application
+A minimal FastAPI example integrated with Kong (API Gateway) and optional Postgres. Designed for local development, Docker, and quick experimentation with Kong routes and services.
 
-```docker build -t my-fastapi-app .```
-```docker run -d -p 8000:8000 my-fastapi-app```
+---
 
-## Test API endpoint
+## Table of Contents
 
-```curl -i -X GET \
---url http://localhost:8000/api/hello \
---header 'Host: localhost'
+1. [Quick links](#quick-links)
+1. [Requirements](#requirements)
+1. [Quickstart — Local development](#quickstart--local-development)
+1. [Docker](#docker)
+1. [Docker Compose (app + Kong + Postgres)](#docker-compose-app--kong--postgres)
+1. [Kong — Registering services and routes](#kong---registering-services-and-routes)
+1. [Configuration & secrets](#configuration--secrets)
+1. [Makefile](#makefile)
+1. [Testing](#testing)
+1. [Troubleshooting](#troubleshooting)
+1. [Contributing](#contributing)
+1. [License](#license)
+
+---
+
+## Quick links
+
+- Source: `app/`
+- Dockerfile: `Dockerfile`
+- Compose: `docker-compose.yml`
+- Kong declarative example: `config/kong.yaml`
+
+## Requirements
+
+1. Python 3.9+ (for local development)
+1. Docker & Docker Compose (or Docker Desktop)
+1. (Optional) `make` for convenience targets
+
+## Quickstart — Local development
+
+1. Create and activate a virtual environment:
+
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+
+1. Install Python dependencies:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+1. Run the app with Uvicorn (dev mode):
+
+   ```bash
+   python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+Open the interactive docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+Example endpoints:
+
+- `GET /` — Hello world JSON
+- `GET /items/{item_id}` — returns the path parameter and optional query
+
+## Docker
+
+Build and run locally (image exposes port 8000):
+
+```bash
+docker build -t fastapi-kong:local .
+docker run --rm -p 8000:8000 fastapi-kong:local
 ```
 
+## Docker Compose (app + Kong + Postgres)
 
-# cd /Users/tonyodonnell/Library/Mobile Documents/com~apple~CloudDocs/Dev/Kong-FastAPI5/app
+Start the full stack (uses `docker-compose.yml`):
 
-# https://fastapi.tiangolo.com/deployment/docker/#docker-cache
-#
-# ------------------------------------------------------------------------------------------------------ #
+```bash
+docker compose up --build
+```
 
-# Python FastAPI Standalone App setup
+If your compose uses a database profile, example to start database-first:
 
-# ----------------
-# WORKS! #
-# ----------------
-# python3 -m venv .venv-api .
-# source bin/activate && pip install -r requirements.txt
-# fastapi dev main.py         // or uvicorn main:app --reload
-# ------------------------------------------------------------------------------------------------------ #
+```bash
+KONG_DATABASE=postgres docker compose --profile database up -d
+```
 
-# ----------------
-# WORKS TOO! #
-# ----------------
-# Python App Docker setup
-# -----------------------
-# pip install -r requirements.txt
-#             >> fastapi[standard]>=0.113.0,<0.114.0
-#             >> pydantic>=2.7.0,<3.0.0
-# Create an app directory and cd into it.
-# Create an empty file __init__.py
-# Create a main.py file with the code below:
-#
-#├── app
-#│   ├── __init__.py
-#│   └── main.py
-#├── Dockerfile
-#└── requirements.txt
+## Kong — Registering services and routes
 
-# // Build your FastAPI image and run the docker container standalone
-# docker build -t myimage .
-# // Run the docker container
-# docker run -d --name mycontainer -p 8005:8005 myimage
+Two options:
 
-# docker ps -a: To see all the running containers in your machine.
-# docker stop myimage       // <container_id>: To stop a running container // 
-# docker rm mycontainer     //<container_id>: To remove/delete a docker container(only if it stopped).
-# docker image ls: To see the list of all the available images with their tag, image id, creation time and size.
-# docker rmi <image_id>: To delete a specific image.
+1. Register via Kong Admin API (imperative):
 
-# ------------------------------------------------------------------------------------------------------ #
-# Run Kong, Postgres, and FastAPI together
-# KONG_DATABASE=postgres docker compose --profile database up -d
-# Then add service and route in Kong
+   ```bash
+   # create a service pointing to the FastAPI container
+   curl -i -X POST http://localhost:8001/services \
+     --data name=fastapi-service \
+     --data url='http://fastapi:8000/'
 
-# add service "fastapi-anal-sent-svc"
-# curl -i -X POST http://localhost:8001/services/ --data name=fastapi-random-svc --data host="127.0.0.0" --data url='http://fastapi:8005/'
+   # create a route that exposes the service at '/'
+   curl -i -X POST http://localhost:8001/services/fastapi-service/routes \
+     --data 'paths[]=/'
+   ```
 
-# add route "fastapi-anal-sent-route"  (by path)
-# curl -i -X POST http://localhost:8001/services/fastapi-random-svc/routes --data name=fastapi-random-route --data 'paths[]=/'
+1. Use declarative configuration (DB-less Kong) — see `config/kong.yaml`.
 
-# Create and run Dockerfile with the following content: // python 3.11 is out there now ! 
-# >>    FROM python:3.9
-# >>    WORKDIR /code
-# >>    COPY ./requirements.txt /code/requirements.txt
-# >>    RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
-# >>    COPY ./app /code/app
-# >>    CMD ["uvicorn", "main:app","--reload","--host", "0.0.0.0", "--port", "8005"]
+Notes:
 
+- Kong Admin API usually listens on port `8001` and the proxy on `8000` (verify your compose file).
+- When using Docker Compose, service hostnames (e.g. `fastapi`) refer to container names in the same compose network.
 
-# You should be able to check it in your Docker container's URL, for example: 
-# http://127.0.0.1/items/5?q=somequery
-# http://0.0.0.0
-# http://127.0.0.1/docs
-# curl http://127.0.0.1/items/5?q=somequery
+## Configuration & secrets
 
-# run Kong, Postgres, and FastAPI together
-# KONG_DATABASE=postgres docker compose --profile database up -d
-# Then add service and route in kong
-# 
-# add service "fastapi-service"
-# curl -i -X POST http://localhost:8001/services/ --data name=fastapi-service --data url='http://fastapi:8005/'
+- Copy `.env.example` -> `.env` and fill values before bringing up Compose.
+- The repository includes a `POSTGRES_PASSWORD` file used by the compose setup — treat it as a secret and avoid committing real secrets to git.
 
-# add route "fastapi-route"  (by path)
-# curl -i -X POST http://localhost:8001/services/fastapi-service/routes --data name=fastapi-route --data 'paths[]=/api/hello'
-# 
-# ------------------------------------------------------------------------------------------------------ #
+## Makefile
 
-# "/" returns Hello World - "/items/{item_id}" returns item_id and optional query param q
-from typing import Union
-from fastapi import FastAPI
+Use `make` targets for common tasks:
 
-app = FastAPI()
+- `make dev` — run uvicorn locally
+- `make build` — docker build
+- `make run` — build + run container
+- `make compose-up` — docker compose up
+- `make compose-down` — docker compose down (removes volumes/orphans)
 
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
+Example:
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
-# fastapi-kong
+```bash
+make dev
+```
+
+## Testing
+
+Run basic curl checks:
+
+```bash
+curl -i http://127.0.0.1:8000/
+curl -i http://127.0.0.1:8000/items/5?q=foo
+```
+
+If Kong proxies `/`, call the proxy (adjust host/port as configured):
+
+```bash
+curl -i http://localhost:8000/ -H "Host: localhost"
+```
+
+## Troubleshooting
+
+- If ports are in use, change the ports in `docker-compose.yml` and update Kong's target.
+- Check container logs with `docker compose logs <service>`.
+- For Kong DB errors, ensure Postgres is healthy and reachable by Kong (network & creds).
+
+## Contributing
+
+Contributions welcome — open an issue or submit a PR. Keep changes small and focused. Include tests where appropriate.
+
+## License
+
+Add a `LICENSE` file (for example: MIT) to make licensing explicit.
+
+---
+
+If you'd like, I can:
+
+1. Add a short troubleshooting section specific to common Kong errors.
+1. Add an example `docker-compose.override.yml` for development.
+1. Add a short CI job to lint markdown and run a basic container smoke-test.
+
+Tell me which you'd prefer and I'll implement it.
+Two options:
+
+1. Register via Kong Admin API (imperative):
+
+   ```bash
+   # create a service pointing to the FastAPI container
+   curl -i -X POST http://localhost:8001/services \
+     --data name=fastapi-service \
+     --data url='http://fastapi:8000/'
+
+   # create a route that exposes the service at '/'
+   curl -i -X POST http://localhost:8001/services/fastapi-service/routes \
+     --data 'paths[]=/'
+   ```
+
+1. Use declarative configuration (DB-less Kong) — see `config/kong.yaml`.
+
+Notes:
+
+- Kong Admin API usually listens on port `8001` and the proxy on `8000` (verify your compose file).
+- When using Docker Compose, service hostnames (e.g. `fastapi`) refer to container names in the same compose network.
+
+## Configuration & secrets
+
+- Copy `.env.example` -> `.env` and fill values before bringing up Compose.
+- The repository includes a `POSTGRES_PASSWORD` file used by the compose setup — treat it as a secret and avoid committing real secrets to git.
+
+## Makefile
+
+Use `make` targets for common tasks:
+
+- `make dev` — run uvicorn locally
+- `make build` — docker build
+- `make run` — build + run container
+- `make compose-up` — docker compose up
+- `make compose-down` — docker compose down (removes volumes/orphans)
+
+Example:
+
+```bash
+make dev
+```
+
+## Testing
+
+Run basic curl checks:
+
+```bash
+curl -i http://127.0.0.1:8000/
+curl -i http://127.0.0.1:8000/items/5?q=foo
+```
+
+If Kong proxies `/`, call the proxy (adjust host/port as configured):
+
+```bash
+curl -i http://localhost:8000/ -H "Host: localhost"
+```
+
+## Troubleshooting
+
+- If ports are in use, change the ports in `docker-compose.yml` and update Kong's target.
+- Check container logs with `docker compose logs <service>`.
+- For Kong DB errors, ensure Postgres is healthy and reachable by Kong (network & creds).
+
+## Contributing
+
+Contributions welcome — open an issue or submit a PR. Keep changes small and focused. Include tests where appropriate.
+
+## License
+
+Add a `LICENSE` file (for example: MIT) to make licensing explicit.
+
+---
+
+If you'd like, I can:
+
+1. Add a short troubleshooting section specific to common Kong errors.
+1. Add an example `docker-compose.override.yml` for development.
+1. Add a short CI job to lint markdown and run a basic container smoke-test.
+
+Tell me which you'd prefer and I'll implement it.
+
